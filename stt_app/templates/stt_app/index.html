@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Real-Time Speech to Text Converter</title>
+    <!-- Font Awesome CDN -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f7f9fc;
+            color: #333;
+            text-align: center;
+            padding: 20px;
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 20px;
+        }
+        .button-container {
+            display: flex;
+            justify-content: center; /* Center buttons horizontally */
+            gap: 20px; /* Space between buttons */
+            margin-top: 20px;
+        }
+        button {
+            padding: 10px 20px;
+            font-size: 18px;
+            cursor: pointer;
+            border: none;
+            border-radius: 5px;
+            background-color: #007bff;
+            color: #fff;
+            transition: background-color 0.3s;
+            height: 50px; /* Set a consistent height for both buttons */
+            line-height: 50px; /* Center text vertically */
+            display: inline-flex; /* Align icon and text horizontally */
+            align-items: center; /* Center text and icon vertically */
+            font-weight: bold; /* Make text bold */
+        }
+        button i {
+            margin-right: 10px; /* Space between icon and text */
+            font-size: 24px; /* Icon size */
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        #transcriptArea {
+            width: 80%;
+            height: 150px;
+            margin: 20px auto;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            resize: none;
+            background-color: #fff;
+            color: #333;
+        }
+        #uploadContainer {
+            margin-top: 20px;
+        }
+        #uploadInput {
+            display: block;
+            margin: 20px auto;
+        }
+    </style>
+</head>
+<body>
+    <h1>Real-Time Speech to Text Converter</h1>
+
+    <!-- Text area to display real-time transcription -->
+    <textarea id="transcriptArea" readonly></textarea>
+
+    <!-- Button container with two buttons -->
+    <div class="button-container">
+        <button id="micButton"><i class="fa fa-microphone"></i> Start Recording</button>
+        <button id="copyButton"><i class="fa fa-copy"></i> Copy</button>
+    </div>
+
+    <!-- JavaScript for Real-Time Speech to Text and File Upload -->
+    <script>
+        const micButton = document.getElementById('micButton');
+        const copyButton = document.getElementById('copyButton');
+        const transcriptArea = document.getElementById('transcriptArea');
+        const uploadInput = document.getElementById('uploadInput');
+        const extractLyricsButton = document.getElementById('extractLyricsButton');
+        const lyricsArea = document.getElementById('lyricsArea');
+        let isRecording = false;
+        let recognition;
+
+        // Check if the browser supports the Web Speech API
+        if (!('webkitSpeechRecognition' in window)) {
+            alert("Your browser does not support real-time Speech Recognition. Please try Google Chrome.");
+        } else {
+            recognition = new webkitSpeechRecognition();
+            recognition.continuous = true; // Keeps listening until stopped
+            recognition.interimResults = true; // Shows real-time transcription
+            recognition.lang = 'en-US'; // Set the language
+
+            recognition.onresult = function(event) {
+                let interim_transcript = '';
+                let final_transcript = '';
+
+                for (let i = event.resultIndex; i < event.results.length; ++i) {
+                    if (event.results[i].isFinal) {
+                        final_transcript += event.results[i][0].transcript + ' '; // Append final transcript
+                    } else {
+                        interim_transcript += event.results[i][0].transcript; // Build interim transcript
+                    }
+                }
+
+                // Update only the final transcript in the textarea
+                if (final_transcript) {
+                    transcriptArea.value += final_transcript; // Append final result only
+                }
+            };
+
+            recognition.onerror = function(event) {
+                console.error("Speech recognition error detected: " + event.error);
+            };
+        }
+
+        // Start/Stop recording when the mic button is clicked
+        micButton.addEventListener('click', function() {
+            if (!isRecording) {
+                recognition.start();
+                micButton.querySelector('i').classList.remove('fa-microphone');
+                micButton.querySelector('i').classList.add('fa-stop');
+                micButton.childNodes[1].textContent = ' Stop Recording';
+            } else {
+                recognition.stop();
+                micButton.querySelector('i').classList.remove('fa-stop');
+                micButton.querySelector('i').classList.add('fa-microphone');
+                micButton.childNodes[1].textContent = ' Start Recording';
+            }
+            isRecording = !isRecording;
+        });
+
+        // Copy text to clipboard when the Copy button is clicked
+        copyButton.addEventListener('click', function() {
+            transcriptArea.select();
+            document.execCommand('copy');
+            alert("Text copied to clipboard!");
+        });
+
+        // Extract lyrics from uploaded audio file
+        extractLyricsButton.addEventListener('click', async function() {
+            const file = uploadInput.files[0];
+            if (!file) {
+                alert("Please upload an audio file first.");
+                return;
+            }
+
+            // Process the file using a server-side API
+            const formData = new FormData();
+            formData.append('audio', file);
+
+            try {
+                const response = await fetch('/extract-lyrics/', {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await response.json();
+                if (data.lyrics) {
+                    lyricsArea.value = data.lyrics;
+                } else {
+                    lyricsArea.value = "Lyrics not found.";
+                }
+            } catch (error) {
+                console.error('Error extracting lyrics:', error);
+                lyricsArea.value = "Error extracting lyrics.";
+            }
+        });
+    </script>
+</body>
+</html>
